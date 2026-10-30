@@ -1,0 +1,1896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milne Bay Province - Coffee Monitoring System (NCA)</title>
+    <!-- Supabase Client CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Reports -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet CSS & JS for Live Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ncaGreen: '#0B3B1E',
+                        ncaDarkGreen: '#062312',
+                        ncaGold: '#F4C430',
+                        ncaGoldHover: '#d9ad26',
+                        ncaCard: '#114727'
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Outfit', sans-serif; }
+        .glass-panel { background: rgba(17, 71, 39, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(244, 196, 48, 0.2); }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #062312; }
+        ::-webkit-scrollbar-thumb { background: #0B3B1E; border-radius: 3px; border: 1px solid #F4C430; }
+        @media print {
+            body * { visibility: hidden; }
+            #printableArea, #printableArea * { visibility: visible; }
+            #printableArea { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-[#062312] text-gray-100 min-h-screen flex flex-col justify-between">
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- ==================== LOGIN SCREEN ==================== -->
+    <div id="loginScreen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#062312] px-4">
+        <div class="w-full max-w-md p-8 rounded-2xl glass-panel shadow-2xl border border-ncaGold/30 text-center relative overflow-hidden">
+            <div class="absolute -top-12 -right-12 w-32 h-32 bg-ncaGold/10 rounded-full blur-2xl"></div>
+            
+            <div class="flex justify-center mb-4">
+                <img src="15319.jpg" alt="National Coffee Authority Papua New Guinea Logo" onerror="this.src='https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=150&auto=format&fit=crop&q=80'" class="w-24 h-24 object-contain rounded-full border-2 border-ncaGold shadow-lg bg-ncaDarkGreen p-1">
+            </div>
+            
+            <h1 class="text-2xl font-bold tracking-wide text-white uppercase">National Coffee Authority</h1>
+            <p class="text-xs font-medium text-ncaGold tracking-widest mt-1 uppercase">Milne Bay Province Coffee Monitoring System</p>
+            <p class="text-xs text-gray-300 mt-2 px-2">Secure access to district-level coffee farm data, farmer registration, and production monitoring.</p>
+
+            <form id="loginForm" class="mt-6 space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-ncaGold mb-1">Username</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-ncaGold"><i class="fa-solid fa-user"></i></span>
+                        <input type="text" id="loginUser" required placeholder="Enter your username" class="w-full pl-10 pr-4 py-3 bg-[#062312] border border-ncaGold/40 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-ncaGold text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-ncaGold mb-1">Password</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-ncaGold"><i class="fa-solid fa-lock"></i></span>
+                        <input type="password" id="loginPass" required placeholder="Enter your password" class="w-full pl-10 pr-10 py-3 bg-[#062312] border border-ncaGold/40 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-ncaGold text-sm">
+                        <span class="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer text-gray-400 hover:text-ncaGold" onclick="togglePassword()"><i id="passIcon" class="fa-solid fa-eye"></i></span>
+                    </div>
+                </div>
+                <div id="loginError" class="text-red-400 text-xs text-center hidden font-medium">Invalid username or password.</div>
+                <button type="submit" class="w-full py-3 bg-ncaGold hover:bg-ncaGoldHover text-[#062312] font-bold rounded-lg shadow-lg transition duration-200 uppercase tracking-wider text-sm mt-2">Login to System</button>
+            </form>
+        </div>
+        <footer class="mt-6 text-xs text-center text-gray-400">
+            Milne Bay Coffee Farms Monitoring V1.1 &copy;2026 NCA PNG
+        </footer>
+    </div>
+
+    <!-- ==================== MAIN APPLICATION CONTAINER ==================== -->
+    <div id="mainApp" class="hidden flex-1 flex flex-col justify-between">
+        <div class="flex-1 flex flex-col">
+            <!-- TOP NAVIGATION HEADER -->
+            <header class="bg-[#0B3B1E] border-b border-ncaGold/30 sticky top-0 z-40 shadow-md">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="flex items-center space-x-2">
+                            <img src="15319.jpg" onerror="this.src='https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=100&auto=format&fit=crop&q=80'" class="w-9 h-9 object-contain rounded-full border border-ncaGold bg-[#062312] p-0.5">
+                            <div>
+                                <span class="font-bold text-white tracking-wider text-sm sm:text-base block leading-tight">NCA - MILNE BAY</span>
+                                <span class="text-[10px] text-ncaGold tracking-widest uppercase block">Coffee Farms Monitoring System</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-4">
+                        <div class="hidden md:flex items-center space-x-2 bg-[#062312] px-3 py-1.5 rounded-full border border-ncaGold/30 text-xs text-gray-300">
+                            <i class="fa-solid fa-shield-halved text-ncaGold"></i>
+                            <span>Administrator: <strong class="text-white">Admin User</strong></span>
+                        </div>
+                        <button onclick="logoutSystem()" class="flex items-center space-x-1.5 bg-red-600/80 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow">
+                            <i class="fa-solid fa-power-off"></i>
+                            <span class="hidden sm:inline">Logout</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- QUICK ACCESS LINKS BAR -->
+            <div class="bg-[#062312] border-b border-ncaGold/20 py-2 px-4 overflow-x-auto">
+                <div class="max-w-7xl mx-auto flex items-center space-x-2 text-xs whitespace-nowrap">
+                    <span class="text-ncaGold font-bold uppercase tracking-wider mr-2"><i class="fa-solid fa-bolt mr-1"></i> Quick Access:</span>
+                    <button onclick="switchTab('dashboard')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Dashboard</button>
+                    <button onclick="switchTab('farmers')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Farmers</button>
+                    <button onclick="switchTab('groups')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Groups</button>
+                    <button onclick="switchTab('blocks')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Blocks</button>
+                    <button onclick="switchTab('extension')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Extension</button>
+                    <button onclick="switchTab('quarterly')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Quarterly</button>
+                    <button onclick="switchTab('annually')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Annually</button>
+                    <button onclick="switchTab('database')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Database</button>
+                    <button onclick="switchTab('locations')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Locations</button>
+                    <button onclick="switchTab('backup')" class="px-2.5 py-1 rounded bg-[#0B3B1E] hover:bg-ncaCard text-gray-200 border border-ncaGold/20 transition">Backup</button>
+                </div>
+            </div>
+
+            <!-- MAIN CONTENT AREA -->
+            <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                
+                <!-- PRINTABLE WRAPPER FOR PDF EXPORT -->
+                <div id="printableArea">
+
+                    <!-- TAB 1: DASHBOARD -->
+                    <section id="tab-dashboard" class="tab-content space-y-6">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">Milne Bay Province Dashboard</h2>
+                                <p class="text-xs text-ncaGold">Overview of Districts, RLLGs, Wards, Communities, Farmers, Groups, and Blocks.</p>
+                            </div>
+                        </div>
+
+                        <!-- KPI STATS GRID -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                            <div class="glass-panel p-4 rounded-xl border-l-4 border-ncaGold text-center shadow">
+                                <span class="block text-[11px] text-gray-300 uppercase font-semibold">Districts</span>
+                                <span id="kpiDistricts" class="text-2xl font-bold text-ncaGold mt-1 block">5</span>
+                            </div>
+                            <div class="glass-panel p-4 rounded-xl border-l-4 border-ncaGold text-center shadow">
+                                <span class="block text-[11px] text-gray-300 uppercase font-semibold">RLLGs</span>
+                                <span id="kpiRllgs" class="text-2xl font-bold text-ncaGold mt-1 block">15</span>
+                            </div>
+                            <div class="glass-panel p-4 rounded-xl border-l-4 border-ncaGold text-center shadow">
+                                <span class="block text-[11px] text-gray-300 uppercase font-semibold">Wards</span>
+                                <span id="kpiWards" class="text-2xl font-bold text-ncaGold mt-1 block">157</span>
+                            </div>
+                            <div class="glass-panel p-4 rounded-xl border-l-4 border-ncaGold text-center shadow">
+                                <span class="block text-[11px] text-gray-300 uppercase font-semibold">Communities</span>
+                                <span id="kpiCommunities" class="text-2xl font-bold text-ncaGold mt-1 block">0</span>
+                            </div>
+                            <div class="glass-panel p-4 rounded-xl border-l-4 border-ncaGold text-center shadow">
+                                <span class="block text-[11px] text-gray-300 uppercase font-semibold">Farmers</span>
+                                <span id="kpiFarmers" class="text-2xl font-bold text-ncaGold mt-1 block">0</span>
+                            </div>
+                            <div class="glass-panel p-4 rounded-xl border-l-4 border-ncaGold text-center shadow">
+                                <span class="block text-[11px] text-gray-300 uppercase font-semibold">Groups</span>
+                                <span id="kpiGroups" class="text-2xl font-bold text-ncaGold mt-1 block">0</span>
+                            </div>
+                            <div class="glass-panel p-4 rounded-xl border-l-4 border-ncaGold text-center shadow col-span-2 sm:col-span-1">
+                                <span class="block text-[11px] text-gray-300 uppercase font-semibold">Blocks</span>
+                                <span id="kpiBlocks" class="text-2xl font-bold text-ncaGold mt-1 block">0</span>
+                            </div>
+                        </div>
+
+                        <!-- MAP & BAR GRAPH SECTION -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- LIVE PNG MAP -->
+                            <div class="glass-panel p-4 rounded-xl shadow flex flex-col">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h3 class="font-bold text-sm text-ncaGold uppercase"><i class="fa-solid fa-map-location-dot mr-2"></i>Live Milne Bay Farmer Locations Map</h3>
+                                    <span class="text-[10px] bg-ncaCard px-2 py-1 rounded text-ncaGold border border-ncaGold/30">PNG Live GIS</span>
+                                </div>
+                                <div id="mapContainer" class="w-full h-80 rounded-lg overflow-hidden border border-ncaGold/30 bg-[#062312]"></div>
+                            </div>
+
+                            <!-- BAR GRAPH: Registered Farmers by District -->
+                            <div class="glass-panel p-4 rounded-xl shadow flex flex-col">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h3 class="font-bold text-sm text-ncaGold uppercase"><i class="fa-solid fa-chart-column mr-2"></i>Farmers by District (Least to Highest)</h3>
+                                    <span class="text-[10px] bg-ncaCard px-2 py-1 rounded text-ncaGold border border-ncaGold/30">Dynamic Analytics</span>
+                                </div>
+                                <div class="flex-1 relative flex items-center justify-center min-h-[320px]">
+                                    <canvas id="districtBarChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RECENT ACTIVITIES & UPCOMING EVENTS -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="glass-panel p-5 rounded-xl shadow">
+                                <h3 class="font-bold text-sm text-ncaGold uppercase mb-3"><i class="fa-solid fa-clock-rotate-left mr-2"></i>Recent Field Activities</h3>
+                                <div id="recentActivitiesList" class="space-y-3 text-xs text-gray-400 italic">
+                                    No recent field activities recorded yet.
+                                </div>
+                            </div>
+
+                            <div class="glass-panel p-5 rounded-xl shadow">
+                                <h3 class="font-bold text-sm text-ncaGold uppercase mb-3"><i class="fa-solid fa-calendar-days mr-2"></i>Upcoming Events & Reminders</h3>
+                                <div id="upcomingEventsList" class="space-y-3 text-xs text-gray-400 italic">
+                                    No upcoming events scheduled.
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- TAB 2: FARMERS -->
+                    <section id="tab-farmers" class="tab-content hidden space-y-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">Farmers Management</h2>
+                                <p class="text-xs text-ncaGold">Register, search, view, edit, and delete coffee farmer records.</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="openModal('farmerModal')" class="bg-ncaGold hover:bg-ncaGoldHover text-[#062312] px-4 py-2 rounded-lg text-xs font-bold uppercase transition flex items-center space-x-2 shadow">
+                                    <i class="fa-solid fa-user-plus"></i><span>Add New Farmer</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- SEARCH & DISTRICT FILTER BAR -->
+                        <div class="glass-panel p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div class="relative w-full sm:w-80">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-ncaGold"><i class="fa-solid fa-search"></i></span>
+                                <input type="text" id="searchFarmers" oninput="filterTable('farmers')" placeholder="Search farmer by name, ID or phone..." class="w-full pl-10 pr-4 py-2 bg-[#062312] border border-ncaGold/40 rounded-lg text-white text-xs placeholder-gray-400 focus:outline-none focus:border-ncaGold">
+                            </div>
+                            <div class="w-full sm:w-auto flex items-center space-x-2">
+                                <label class="text-xs font-semibold text-ncaGold uppercase">District Filter:</label>
+                                <select id="filterDistrictFarmers" onchange="filterTable('farmers')" class="px-3 py-2 bg-[#062312] border border-ncaGold/40 rounded-lg text-white text-xs focus:outline-none focus:border-ncaGold">
+                                    <option value="">All Districts</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- FARMERS GRID VIEW -->
+                        <div id="farmersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <!-- Dynamic Cards Injected Here -->
+                        </div>
+                    </section>
+
+                    <!-- TAB 3: GROUPS / COOPERATIVES -->
+                    <section id="tab-groups" class="tab-content hidden space-y-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">Farmer Groups & Cooperatives</h2>
+                                <p class="text-xs text-ncaGold">Manage cooperatives, associations, farmer groups, and organizational affiliations.</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="openModal('groupModal')" class="bg-ncaGold hover:bg-ncaGoldHover text-[#062312] px-4 py-2 rounded-lg text-xs font-bold uppercase transition flex items-center space-x-2 shadow">
+                                    <i class="fa-solid fa-handshake-angle"></i><span>Add New Group</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- SEARCH & DISTRICT FILTER BAR -->
+                        <div class="glass-panel p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div class="relative w-full sm:w-80">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-ncaGold"><i class="fa-solid fa-search"></i></span>
+                                <input type="text" id="searchGroups" oninput="filterTable('groups')" placeholder="Search group name, ID or chairperson..." class="w-full pl-10 pr-4 py-2 bg-[#062312] border border-ncaGold/40 rounded-lg text-white text-xs placeholder-gray-400 focus:outline-none focus:border-ncaGold">
+                            </div>
+                            <div class="w-full sm:w-auto flex items-center space-x-2">
+                                <label class="text-xs font-semibold text-ncaGold uppercase">District Filter:</label>
+                                <select id="filterDistrictGroups" onchange="filterTable('groups')" class="px-3 py-2 bg-[#062312] border border-ncaGold/40 rounded-lg text-white text-xs focus:outline-none focus:border-ncaGold">
+                                    <option value="">All Districts</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- GROUPS GRID VIEW -->
+                        <div id="groupsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <!-- Dynamic Cards Injected Here -->
+                        </div>
+                    </section>
+
+                    <!-- TAB 4: COFFEE BLOCKS -->
+                    <section id="tab-blocks" class="tab-content hidden space-y-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">Coffee Blocks Management</h2>
+                                <p class="text-xs text-ncaGold">Record and monitor small-holder blocks and large plantations.</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="openModal('blockModal')" class="bg-ncaGold hover:bg-ncaGoldHover text-[#062312] px-4 py-2 rounded-lg text-xs font-bold uppercase transition flex items-center space-x-2 shadow">
+                                    <i class="fa-solid fa-seedling"></i><span>Add New Block</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- SEARCH & DISTRICT FILTER BAR -->
+                        <div class="glass-panel p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div class="relative w-full sm:w-80">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-ncaGold"><i class="fa-solid fa-search"></i></span>
+                                <input type="text" id="searchBlocks" oninput="filterTable('blocks')" placeholder="Search block name, ID or farmer..." class="w-full pl-10 pr-4 py-2 bg-[#062312] border border-ncaGold/40 rounded-lg text-white text-xs placeholder-gray-400 focus:outline-none focus:border-ncaGold">
+                            </div>
+                            <div class="w-full sm:w-auto flex items-center space-x-2">
+                                <label class="text-xs font-semibold text-ncaGold uppercase">District Filter:</label>
+                                <select id="filterDistrictBlocks" onchange="filterTable('blocks')" class="px-3 py-2 bg-[#062312] border border-ncaGold/40 rounded-lg text-white text-xs focus:outline-none focus:border-ncaGold">
+                                    <option value="">All Districts</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- BLOCKS GRID VIEW -->
+                        <div id="blocksGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <!-- Dynamic Cards Injected Here -->
+                        </div>
+                    </section>
+
+                    <!-- TAB 5: EXTENSION ACTIVITIES -->
+                    <section id="tab-extension" class="tab-content hidden space-y-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">Extension Activities & Field Operations</h2>
+                                <p class="text-xs text-ncaGold">Record farm visits, trainings, seedling distribution, and pest assessments.</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="openModal('extensionModal')" class="bg-ncaGold hover:bg-ncaGoldHover text-[#062312] px-4 py-2 rounded-lg text-xs font-bold uppercase transition flex items-center space-x-2 shadow">
+                                    <i class="fa-solid fa-plus"></i><span>Add Activity Record</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="extensionGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <!-- Dynamic Cards Injected Here -->
+                        </div>
+                    </section>
+
+                    <!-- TAB 6: QUARTERLY REPORTS -->
+                    <section id="tab-quarterly" class="tab-content hidden space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">Quarterly Reports & Analytics</h2>
+                                <p class="text-xs text-ncaGold">Detailed production and extension activities broken down by quarters.</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="glass-panel p-5 rounded-xl shadow">
+                                <h3 class="font-bold text-sm text-ncaGold uppercase mb-4"><i class="fa-solid fa-chart-pie mr-2"></i>Quarterly Coffee Type Distribution</h3>
+                                <div class="relative h-72 flex items-center justify-center">
+                                    <canvas id="quarterlyPieChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="glass-panel p-5 rounded-xl shadow">
+                                <h3 class="font-bold text-sm text-ncaGold uppercase mb-4"><i class="fa-solid fa-chart-line mr-2"></i>Quarterly Seedling Distribution & Growth</h3>
+                                <div class="relative h-72 flex items-center justify-center">
+                                    <canvas id="quarterlyLineChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- TAB 7: ANNUALLY REPORTS -->
+                    <section id="tab-annually" class="tab-content hidden space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">Annual Reports & Growth Performance</h2>
+                                <p class="text-xs text-ncaGold">Annual summary of registrations, active blocks, and total harvest areas.</p>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel p-5 rounded-xl shadow">
+                            <h3 class="font-bold text-sm text-ncaGold uppercase mb-4"><i class="fa-solid fa-chart-column mr-2"></i>Annual Farmer & Block Registrations (2024 - 2026)</h3>
+                            <div class="relative h-80 flex items-center justify-center">
+                                <canvas id="annualBarChart"></canvas>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- TAB 8: DATABASE RECORDS -->
+                    <section id="tab-database" class="tab-content hidden space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">System Database Records</h2>
+                                <p class="text-xs text-ncaGold">Master view and data management for all system tables.</p>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel p-6 rounded-xl shadow space-y-4">
+                            <h3 class="font-bold text-sm text-ncaGold uppercase"><i class="fa-solid fa-table mr-2"></i>Master Database Overview</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs text-gray-300">
+                                    <thead class="bg-[#062312] text-ncaGold uppercase border-b border-ncaGold/30">
+                                        <tr>
+                                            <th class="p-3">Entity Type</th>
+                                            <th class="p-3">Total Records</th>
+                                            <th class="p-3">Last Modified</th>
+                                            <th class="p-3">Status</th>
+                                            <th class="p-3">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-ncaGold/10">
+                                        <tr>
+                                            <td class="p-3 font-semibold text-white">Farmers</td>
+                                            <td class="p-3" id="dbCountFarmers">0</td>
+                                            <td class="p-3">Live (2026)</td>
+                                            <td class="p-3"><span class="bg-green-900 text-green-300 px-2 py-0.5 rounded text-[10px]">Active</span></td>
+                                            <td class="p-3"><button onclick="switchTab('farmers')" class="text-ncaGold hover:underline font-semibold">Manage</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="p-3 font-semibold text-white">Groups / Cooperatives</td>
+                                            <td class="p-3" id="dbCountGroups">0</td>
+                                            <td class="p-3">Live (2026)</td>
+                                            <td class="p-3"><span class="bg-green-900 text-green-300 px-2 py-0.5 rounded text-[10px]">Active</span></td>
+                                            <td class="p-3"><button onclick="switchTab('groups')" class="text-ncaGold hover:underline font-semibold">Manage</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="p-3 font-semibold text-white">Coffee Blocks</td>
+                                            <td class="p-3" id="dbCountBlocks">0</td>
+                                            <td class="p-3">Live (2026)</td>
+                                            <td class="p-3"><span class="bg-green-900 text-green-300 px-2 py-0.5 rounded text-[10px]">Active</span></td>
+                                            <td class="p-3"><button onclick="switchTab('blocks')" class="text-ncaGold hover:underline font-semibold">Manage</button></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="p-3 font-semibold text-white">Extension Activities</td>
+                                            <td class="p-3" id="dbCountExtension">0</td>
+                                            <td class="p-3">Live (2026)</td>
+                                            <td class="p-3"><span class="bg-green-900 text-green-300 px-2 py-0.5 rounded text-[10px]">Active</span></td>
+                                            <td class="p-3"><button onclick="switchTab('extension')" class="text-ncaGold hover:underline font-semibold">Manage</button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- TAB 9: LOCATION DATABASE -->
+                    <section id="tab-locations" class="tab-content hidden space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">Milne Bay Location Database</h2>
+                                <p class="text-xs text-ncaGold">Extracted Districts, RLLGs, and all 157 Wards.</p>
+                            </div>
+                        </div>
+
+                        <div id="locationListContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <!-- Populated by JS in Grid View -->
+                        </div>
+                    </section>
+
+                    <!-- TAB 10: BACKUP & RESTORE -->
+                    <section id="tab-backup" class="tab-content hidden space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-wide">System Backup & Restore</h2>
+                                <p class="text-xs text-ncaGold">Export database JSON or restore previous records.</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="glass-panel p-6 rounded-xl shadow space-y-4">
+                                <h3 class="font-bold text-sm text-ncaGold uppercase"><i class="fa-solid fa-download mr-2"></i>Export Backup</h3>
+                                <p class="text-xs text-gray-300">Download a complete JSON backup of all registered farmers, groups, blocks, and extension activities.</p>
+                                <button onclick="backupData()" class="w-full py-3 bg-ncaGold hover:bg-ncaGoldHover text-[#062312] font-bold rounded-lg text-xs uppercase tracking-wider transition shadow">Download Backup File</button>
+                            </div>
+
+                            <div class="glass-panel p-6 rounded-xl shadow space-y-4">
+                                <h3 class="font-bold text-sm text-ncaGold uppercase"><i class="fa-solid fa-upload mr-2"></i>Restore Backup</h3>
+                                <p class="text-xs text-gray-300">Upload a previously saved JSON backup file to restore system records.</p>
+                                <input type="file" id="restoreFile" accept=".json" class="w-full text-xs text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-ncaCard file:text-ncaGold hover:file:bg-[#1a5e37]">
+                                <button onclick="restoreData()" class="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-lg text-xs uppercase tracking-wider transition shadow">Restore System Data</button>
+                            </div>
+                        </div>
+                    </section>
+
+                </div> <!-- End Printable Area -->
+            </main>
+        </div>
+
+        <!-- FOOTER FOR MAIN APP -->
+        <footer class="bg-[#0B3B1E] border-t border-ncaGold/20 py-4 text-center text-xs text-gray-400 mt-8">
+            Milne Bay Coffee Farms Monitoring V1.1 &copy;2026 NCA PNG
+        </footer>
+    </div>
+
+    <!-- BACK TO TOP BUTTON -->
+    <button id="backToTopBtn" onclick="scrollToTop()" class="fixed bottom-6 right-6 z-50 hidden bg-ncaGold hover:bg-ncaGoldHover text-[#062312] p-3 rounded-full shadow-lg transition duration-200">
+        <i class="fa-solid fa-arrow-up text-sm font-bold"></i>
+    </button>
+
+    <!-- ==================== MODALS & FORMS ==================== -->
+    <!-- LOGOUT WARNING MODAL -->
+    <div id="logoutModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full p-6 rounded-2xl shadow-2xl border border-ncaGold/40 text-center relative">
+            <div class="w-16 h-16 bg-ncaGold/20 text-ncaGold rounded-full flex items-center justify-center mx-auto mb-4 text-2xl border border-ncaGold/40">
+                <i class="fa-solid fa-power-off"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white uppercase mb-2">Confirm Logout</h3>
+            <p class="text-xs text-gray-300 mb-6">Are you sure you want to log out of the Milne Bay Coffee Monitoring System? You will need to enter your credentials to log back in.</p>
+            <div class="flex justify-center space-x-3">
+                <button onclick="closeModal('logoutModal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-semibold uppercase">Cancel</button>
+                <button onclick="confirmLogout()" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase shadow">Yes, Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FARMER MODAL -->
+    <div id="farmerModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="glass-panel max-w-2xl w-full p-6 rounded-2xl shadow-2xl border border-ncaGold/40 relative max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 border-b border-ncaGold/20 pb-3">
+                <h3 id="farmerModalTitle" class="text-lg font-bold text-white uppercase"><i class="fa-solid fa-user-plus text-ncaGold mr-2"></i>Register New Farmer</h3>
+                <button onclick="closeModal('farmerModal')" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="farmerForm" onsubmit="saveFarmer(event)" class="space-y-4 text-xs">
+                <input type="hidden" id="farmerEditIndex" value="-1">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">1. Farmer ID (Auto Generated)</label>
+                        <input type="text" id="f_id" readonly class="w-full p-2.5 bg-[#062312] border border-ncaGold/30 rounded-lg text-ncaGold font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">2. Registration Date & Time</label>
+                        <input type="text" id="f_date" readonly class="w-full p-2.5 bg-[#062312] border border-ncaGold/30 rounded-lg text-gray-300">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-ncaGold mb-1">3. Full Name *</label>
+                    <input type="text" id="f_name" required placeholder="Enter full name" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">4. Gender *</label>
+                        <select id="f_gender" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">5. Age *</label>
+                        <input type="number" id="f_age" required min="18" max="100" placeholder="Age" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">6. Phone No *</label>
+                        <input type="number" id="f_phone" required placeholder="e.g. +675 7123 4567" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">7. District *</label>
+                        <select id="f_district" required onchange="populateRLLGs('f_district', 'f_rllg', 'f_ward')" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="">Select District</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">8. RLLG *</label>
+                        <select id="f_rllg" required onchange="populateWards('f_district', 'f_rllg', 'f_ward')" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="">Select RLLG</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">9. Ward *</label>
+                        <select id="f_ward" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="">Select Ward</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">10. Community *</label>
+                        <input type="text" id="f_community" required placeholder="Community name" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">12. Coffee Type *</label>
+                        <select id="f_coffee" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="Arabica">Arabica</option>
+                            <option value="Robusta">Robusta</option>
+                            <option value="Both">Both</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-ncaGold mb-1">13. Farmer Affiliation (Groups / Cooperatives)</label>
+                    <select id="f_affiliation" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                        <option value="No Affiliation">No Affiliation</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4 border-t border-ncaGold/20">
+                    <button type="button" onclick="closeModal('farmerModal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold uppercase">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-ncaGold hover:bg-ncaGoldHover text-[#062312] rounded-lg font-bold uppercase shadow">Save Farmer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- GROUP MODAL -->
+    <div id="groupModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="glass-panel max-w-2xl w-full p-6 rounded-2xl shadow-2xl border border-ncaGold/40 relative max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 border-b border-ncaGold/20 pb-3">
+                <h3 id="groupModalTitle" class="text-lg font-bold text-white uppercase"><i class="fa-solid fa-handshake text-ncaGold mr-2"></i>Register Group / Cooperative</h3>
+                <button onclick="closeModal('groupModal')" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="groupForm" onsubmit="saveGroup(event)" class="space-y-4 text-xs">
+                <input type="hidden" id="groupEditIndex" value="-1">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">1. Group ID (Auto Generated)</label>
+                        <input type="text" id="g_id" readonly class="w-full p-2.5 bg-[#062312] border border-ncaGold/30 rounded-lg text-ncaGold font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">2. Registration Date & Time</label>
+                        <input type="text" id="g_date" readonly class="w-full p-2.5 bg-[#062312] border border-ncaGold/30 rounded-lg text-gray-300">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">3. Group/Organisation Name *</label>
+                        <input type="text" id="g_name" required placeholder="Organisation name" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">4. Organisation Type *</label>
+                        <select id="g_type" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="Cooperative">Cooperative</option>
+                            <option value="Farmer Group">Farmer Group</option>
+                            <option value="Business">Business</option>
+                            <option value="Association">Association</option>
+                            <option value="Community Organisation">Community Organisation</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">5. Registration No. (Auto Generated)</label>
+                        <input type="text" id="g_regno" readonly class="w-full p-2.5 bg-[#062312] border border-ncaGold/30 rounded-lg text-ncaGold font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">6. Chairperson / Manager *</label>
+                        <input type="text" id="g_manager" required placeholder="Chairperson name" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">7. District *</label>
+                        <select id="g_district" required onchange="populateRLLGs('g_district', 'g_rllg', 'g_ward')" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="">Select District</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">8. RLLG *</label>
+                        <select id="g_rllg" required onchange="populateWards('g_district', 'g_rllg', 'g_ward')" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="">Select RLLG</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">9. Ward *</label>
+                        <select id="g_ward" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="">Select Ward</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">10. Community *</label>
+                        <input type="text" id="g_community" required placeholder="Community" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">11. Member Count (Auto)</label>
+                        <input type="text" id="g_members" readonly value="0" class="w-full p-2.5 bg-[#062312] border border-ncaGold/30 rounded-lg text-ncaGold font-bold">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4 border-t border-ncaGold/20">
+                    <button type="button" onclick="closeModal('groupModal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold uppercase">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-ncaGold hover:bg-ncaGoldHover text-[#062312] rounded-lg font-bold uppercase shadow">Save Group</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- COFFEE BLOCK MODAL -->
+    <div id="blockModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="glass-panel max-w-xl w-full p-6 rounded-2xl shadow-2xl border border-ncaGold/40 relative max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 border-b border-ncaGold/20 pb-3">
+                <h3 id="blockModalTitle" class="text-lg font-bold text-white uppercase"><i class="fa-solid fa-seedling text-ncaGold mr-2"></i>Register Coffee Block</h3>
+                <button onclick="closeModal('blockModal')" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="blockForm" onsubmit="saveBlock(event)" class="space-y-4 text-xs">
+                <input type="hidden" id="blockEditIndex" value="-1">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">1. Block ID (Auto Generated)</label>
+                        <input type="text" id="b_id" readonly class="w-full p-2.5 bg-[#062312] border border-ncaGold/30 rounded-lg text-ncaGold font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">2. Block Category *</label>
+                        <select id="b_category" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="Small-holder Block">Small-holder Block</option>
+                            <option value="Plantation">Plantation</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">3. Select Farmer *</label>
+                        <select id="b_farmer" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="">Select Registered Farmer</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">4. Block Name *</label>
+                        <input type="text" id="b_name" required placeholder="e.g. Upper Valley Block A" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">5. Coffee Type *</label>
+                        <select id="b_coffee" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="Arabica">Arabica</option>
+                            <option value="Robusta">Robusta</option>
+                            <option value="Both">Both</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">6. Area (ha) *</label>
+                        <input type="number" step="0.1" id="b_area" required placeholder="e.g. 1.5" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">7. Total Trees *</label>
+                        <input type="number" id="b_trees" required placeholder="e.g. 850" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">8. Year Established *</label>
+                        <input type="number" id="b_year" required min="1970" max="2026" value="2026" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">9. Block Condition *</label>
+                        <select id="b_condition" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white focus:outline-none focus:border-ncaGold">
+                            <option value="Good">Good</option>
+                            <option value="Fair">Fair</option>
+                            <option value="Poor">Poor</option>
+                            <option value="New">New</option>
+                            <option value="Not Assessed">Not Assessed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4 border-t border-ncaGold/20">
+                    <button type="button" onclick="closeModal('blockModal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold uppercase">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-ncaGold hover:bg-ncaGoldHover text-[#062312] rounded-lg font-bold uppercase shadow">Save Block</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- EXTENSION MODAL -->
+    <div id="extensionModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="glass-panel max-w-2xl w-full p-6 rounded-2xl shadow-2xl border border-ncaGold/40 relative max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 border-b border-ncaGold/20 pb-3">
+                <h3 class="text-lg font-bold text-white uppercase"><i class="fa-solid fa-clipboard-list text-ncaGold mr-2"></i>Record Extension Activity</h3>
+                <button onclick="closeModal('extensionModal')" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="extensionForm" onsubmit="saveExtension(event)" class="space-y-4 text-xs">
+                <input type="hidden" id="extEditIndex" value="-1">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">1. Activity ID (Auto)</label>
+                        <input type="text" id="e_id" readonly class="w-full p-2.5 bg-[#062312] border border-ncaGold/30 rounded-lg text-ncaGold font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">2. Activity Date & Time</label>
+                        <input type="text" id="e_date" readonly class="w-full p-2.5 bg-[#062312] border border-ncaGold/30 rounded-lg text-gray-300">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-ncaGold mb-1">3. Activity Types (Select Multiple)</label>
+                    <div id="e_types_container" class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-[#062312] border border-ncaGold/40 rounded-lg">
+                        <label class="flex items-center space-x-2 text-gray-200 cursor-pointer"><input type="checkbox" name="e_type_chk" value="Farm Visit" class="accent-ncaGold"> <span>Farm Visit</span></label>
+                        <label class="flex items-center space-x-2 text-gray-200 cursor-pointer"><input type="checkbox" name="e_type_chk" value="Farmer Training" class="accent-ncaGold"> <span>Farmer Training</span></label>
+                        <label class="flex items-center space-x-2 text-gray-200 cursor-pointer"><input type="checkbox" name="e_type_chk" value="Pruning Demonstration" class="accent-ncaGold"> <span>Pruning Demonstration</span></label>
+                        <label class="flex items-center space-x-2 text-gray-200 cursor-pointer"><input type="checkbox" name="e_type_chk" value="Nursery Management" class="accent-ncaGold"> <span>Nursery Management</span></label>
+                        <label class="flex items-center space-x-2 text-gray-200 cursor-pointer"><input type="checkbox" name="e_type_chk" value="Seedling Distribution" class="accent-ncaGold"> <span>Seedling Distribution</span></label>
+                        <label class="flex items-center space-x-2 text-gray-200 cursor-pointer"><input type="checkbox" name="e_type_chk" value="Pest & Disease Assessment" class="accent-ncaGold"> <span>Pest & Disease Assessment</span></label>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">4. Extension Officer *</label>
+                        <input type="text" id="e_officer" required placeholder="Officer name" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">5. District *</label>
+                        <select id="e_district" required onchange="populateRLLGs('e_district', 'e_rllg', 'e_ward')" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                            <option value="">Select District</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">6. RLLG *</label>
+                        <select id="e_rllg" required onchange="populateWards('e_district', 'e_rllg', 'e_ward')" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                            <option value="">Select RLLG</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">7. Ward *</label>
+                        <select id="e_ward" required class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                            <option value="">Select Ward</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">8. Community *</label>
+                        <input type="text" id="e_community" required placeholder="Community" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">Male Part.</label>
+                        <input type="number" id="e_males" value="0" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">Female Part.</label>
+                        <input type="number" id="e_females" value="0" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">Seedlings Dist.</label>
+                        <input type="number" id="e_seedlings" value="0" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-ncaGold mb-1">Area (ha)</label>
+                        <input type="number" step="0.1" id="e_area" value="0" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-ncaGold mb-1">20. Topics / Work Completed *</label>
+                    <input type="text" id="e_topics" required placeholder="e.g. Pruning, drainage, shade management" class="w-full p-2.5 bg-[#062312] border border-ncaGold/40 rounded-lg text-white">
+                </div>
+                <div class="flex justify-end space-x-3 pt-4 border-t border-ncaGold/20">
+                    <button type="button" onclick="closeModal('extensionModal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold uppercase">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-ncaGold hover:bg-ncaGoldHover text-[#062312] rounded-lg font-bold uppercase shadow">Save Activity</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- VIEW RECORD MODAL -->
+    <div id="viewModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-lg w-full p-6 rounded-2xl shadow-2xl border border-ncaGold/40 relative">
+            <div class="flex justify-between items-center mb-4 border-b border-ncaGold/20 pb-3">
+                <h3 class="text-lg font-bold text-white uppercase"><i class="fa-solid fa-eye text-ncaGold mr-2"></i>Record Details</h3>
+                <button onclick="closeModal('viewModal')" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="viewModalContent" class="space-y-3 text-xs text-gray-200 max-h-[60vh] overflow-y-auto pr-2">
+                <!-- Dynamically filled -->
+            </div>
+            <div class="flex justify-end pt-4 border-t border-ncaGold/20 mt-4">
+                <button onclick="closeModal('viewModal')" class="px-4 py-2 bg-ncaGold hover:bg-ncaGoldHover text-[#062312] font-bold rounded-lg text-xs uppercase">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOCATION DETAILS MODAL -->
+    <div id="locationDetailsModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-2xl w-full p-6 rounded-2xl shadow-2xl border border-ncaGold/40 relative">
+            <div class="flex justify-between items-center mb-4 border-b border-ncaGold/20 pb-3">
+                <h3 id="locModalTitle" class="text-lg font-bold text-white uppercase"><i class="fa-solid fa-map-location-dot text-ncaGold mr-2"></i>District Details</h3>
+                <button onclick="closeModal('locationDetailsModal')" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="locModalContent" class="space-y-4 text-xs text-gray-200 max-h-[60vh] overflow-y-auto pr-2">
+                <!-- Dynamically filled RLLGs and wards -->
+            </div>
+            <div class="flex justify-end pt-4 border-t border-ncaGold/20 mt-4">
+                <button onclick="closeModal('locationDetailsModal')" class="px-4 py-2 bg-ncaGold hover:bg-ncaGoldHover text-[#062312] font-bold rounded-lg text-xs uppercase">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DELETE WARNING MODAL -->
+    <div id="deleteModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full p-6 rounded-2xl shadow-2xl border border-red-500/40 text-center relative">
+            <div class="w-16 h-16 bg-red-600/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl border border-red-500/40">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white uppercase mb-2">Warning: Permanent Deletion</h3>
+            <p id="deleteWarningText" class="text-xs text-gray-300 mb-6">Are you sure you want to delete this record? This action cannot be undone and will update all system stats and databases.</p>
+            <input type="hidden" id="deleteType" value="">
+            <input type="hidden" id="deleteIndex" value="">
+            <div class="flex justify-center space-x-3">
+                <button onclick="closeModal('deleteModal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-semibold uppercase">Cancel</button>
+                <button onclick="confirmDelete()" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase shadow">Yes, Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== APPLICATION SCRIPT ==================== -->
+    <script>
+        // ==================== SUPABASE INITIALIZATION ====================
+        const SUPABASE_URL = 'https://nccijskkntwzcwvgcvyl.supabase.co';   // <-- Paste your Supabase Project URL here
+        const SUPABASE_ANON_KEY = '‎eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jY2lqc2trbnR3emN3dmdjdnlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNjA3OTMsImV4cCI6MjEwODkzNjc5M30.BSkQJqm_gLSHaYe6qqXsL4FO1j7n8siHNQLB8T8wkME'; // <-- Paste your Supabase Anon/Public Key here
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Milne Bay Administrative Data Extracted
+        const milneBayData = {
+            "Alotau District": {
+                "Huhu RLLG": ["Mutu'uwa", "Divinai", "Daio", "Rabe", "Laneianene", "Siasiada", "Gibara", "Lamhaga", "Lelehudi", "Watunou", "Nigila", "Ahioma", "Waema", "Gabugabuna", "Maiwara", "Naura", "Gelamalaia", "Gamadoudou", "Wagawaga", "Gwavali", "Upper Dawadawa", "Bubuleta", "Walalaia", "Bou", "Ipouli", "Kilakilana", "Borowai", "Laviam", "Lower Dawadawa", "Hagita Estate"],
+                "Maramatana RLLG": ["Lavora", "Topura", "Iapoa No. 1", "Wamawamana", "Taupota", "Garuahi", "Awaiama", "Keia", "Iapoa No. 2", "Porotana", "Huhuna", "Guga", "Wagohuhu", "Biwa", "Ibulai", "Ronana", "East Cape", "Iabam/Pahilele", "Nuakata"],
+                "Suau RLLG": ["Koukou", "Iloilo", "Bonarua", "Modewa", "Baibaisiga", "Suau Island", "Sibalai", "Ipulai", "Savalala", "Navabu", "Isuae", "Savaia", "Oyamamania", "Isudiudi", "Saga'aho", "Isuisu", "Isudau", "Sea'sea Island", "Sea'sea North", "Silosilo", "Kaukau", "Bonabona Island", "Dahuni", "Leileiafa", "Suieabina", "Gadaisu", "Wadauda", "Boilave", "Takwatakwa"]
+            },
+            "Rabaraba/Baniara District": {
+                "Daga RLLG": ["Gaunani", "Birat", "Bonenau", "Param", "Kakaia", "Payawa", "Ilakae - Modeni", "Uni", "Bibitan", "Danawan", "Biman", "Gwagut", "Gwadede", "Eviaua", "Gwaira", "Kanaturu", "Gauwa", "Gwiroro"],
+                "Makamaka RLLG": ["Ba'awa", "Midino", "Iarame", "Pem", "Magabara", "Tapio", "Mukawa", "Bogaboga", "Ginada", "Irikaba", "Wabubu", "Dabora", "Banapa", "Menap", "Pora", "Abuaro", "Giwa", "Koiyabagira", "Kwagila", "Biniguni", "Wapon", "Borovia", "Pumani", "Bemberi", "Gurukwaia", "Mapouna"],
+                "Weraura RLLG": ["Divari Ward", "Kwabunaki Ward", "Rumaruma Ward", "Damayadona Ward", "Wedau", "Manubada", "Vidia", "Radava", "Gadoa", "Wadobuna", "Nakara", "Uga", "Augwana", "Sirisiri", "Taramugu", "Ikara", "Taubadi", "Bidiesi", "Awawa", "Dombosaina", "Warawadidi", "Bowadi", "Danobu", "Karagaut", "Wanama", "Boiabola", "Gadovisu", "Didia", "Mainawa", "Pova"]
+            },
+            "Esa'ala District": {
+                "Dobu RLLG": ["Maiabari", "Bwakera", "Koruwea", "Io'o", "Taulu", "Sisiana", "Miadeba", "Darubia", "Kenaia", "Buduwagula", "Nade", "Sill'llugu", "Wesoliwe", "Galibwa", "Neboluwa", "Salamo", "Gornwa", "Begasi", "Du'una", "Daguyala", "Deidei", "Bwaiowa", "Sawa'edi", "Waluma Fast", "Waluma West", "Sebutuya", "Momoawa", "Basima", "Urua", "Gameta", "Duduna", "Wadalei", "Bosalewa", "Gumawana", "Sanaroa"],
+                "Duau RLLG": ["Kelogea", "Sawatupwa", "Mwatebu", "Sawataetae", "Lomitawa", "Sipupu", "Weyoko", "Meudana", "Kwanaura", "Loboda", "Siausi", "Dawada", "Sigasiga", "Sapisapia", "Bihawa", "Somwadina", "Mwalukwasia", "Kasikasi", "Kumwalau", "Kalotau", "Barabara", "Bunama", "Gumali", "Isumayaumayau", "Pwanapwana", "Sibonai", "Bwasiaiyai", "Kurada"],
+                "West Furguson RLLG": ["Fayayana", "Ailuluai", "Ukeokeo", "Toagesi", "Igwageta", "Kukuya", "Ibwananiu", "Mapamoiwa", "Fagululu", "Iamalele South", "Iamalele North", "Gewata", "Saibutu", "Niubuo", "Ebadidu", "Tutubea", "Bwayobwayo", "Masimasi", "Gwabegwabe", "Atugamwana", "Agealuma", "Didiau", "Kalokalo", "Fatavi", "Wapolu"]
+            },
+            "Kirivina/Goodenough District": {
+                "Goodenough RLLG": ["Waibuia", "Ufauta", "Watuluma Upper", "Watuluma Lower", "Idakamenai", "Ulutuya", "Wakonai", "Vivigani", "Eweli", "Kalauna", "Belebele", "Mataita West", "Mataita East", "Faiava", "Ufu'ufu", "Bwadoga East", "Bwadoga West", "Wagifa", "Abolu", "Kilia", "Lauwela", "Awale", "Utalo", "Diodio", "Yauyaula", "Awaya", "Ibawana", "Kalimtabutabu"],
+                "Kirivina RLLG": ["Kaibola", "Mvatawa", "Tubowada", "Dayagila", "Liluta", "Kwebwaga", "Omarakana", "Kabwaku", "Okaikoda", "Yalumgwa", "Kuruvitu", "Yalaka", "Wabutuma", "Bwetalu", "Gumilababa", "Kapwapu", "Kavataria", "Mulosaida", "Oyueyova", "Tukwaukwa", "Okaiboma", "Ilalima", "Obulaku", "Sinaketa", "Loya", "Vakuta", "Kwumwagea", "Lalela", "Okabulula", "Kaduwaga", "Koma", "Kuyawa", "Simsimla"]
+            },
+            "Samarai-Murua District": {
+                "Bwanabwana RLLG": ["Hamama", "Loani", "Logea", "Kwato", "Tegorauan", "Gotai", "Dawson", "Samarai East", "Kwaraiwa", "Sawasawaga", "Anagusa", "Samarai North", "Tubetube", "Yokowa", "Gigia", "Habani", "Simagahi", "Ware Island", "Bedauna", "Sideia", "Kuiaro", "Sekuku", "Sidudu"],
+                "Louisiade RLLG": ["Mwabua", "Narian", "Bwagaola", "Hinaota", "Kaubwaga", "Boiou", "Siagara East", "Siagara West", "Gulewa", "East Liak", "West Liak", "Bagilina", "Ewena", "Ebora", "Bwagabwaga", "Awaibi", "Alhoga", "Eaus North", "Eaus South", "Gaibobo", "Kimuta", "West Panaeati", "East Panaeati", "Panapompom", "Brooker Island", "Motorina East", "Motorina West", "Bagaman", "Panaumala", "Baimatana", "Loba", "Bwana"],
+                "Murua RLLG": ["Kulumadau", "Guasopa", "Wabununa", "Kavatana", "Kaurai", "Iwa", "Unumatana", "Budibudi", "Yanaba", "Gawa Island", "Kauwai", "Madou", "Dikoias", "Kwaiwata", "Muneiveyova", "Oyavata", "Alcester"],
+                "Yaleyamba RLLG": ["Jingo", "Rambuso", "Rahuwo"]
+            }
+        };
+
+        const districtCoordinates = {
+            "Alotau District": { lat: -10.3167, lng: 150.2833 },
+            "Rabaraba/Baniara District": { lat: -9.8500, lng: 149.6167 },
+            "Esa'ala District": { lat: -9.7333, lng: 150.7333 },
+            "Kirivina/Goodenough District": { lat: -8.5167, lng: 151.0833 },
+            "Samarai-Murua District": { lat: -10.6000, lng: 152.5000 }
+        };
+
+        let db = {
+            farmers: [],
+            groups: [],
+            blocks: [],
+            extension: []
+        };
+
+        let charts = {};
+        let mapMarkers = [];
+
+        // ==================== LOCAL STORAGE FUNCTIONS ====================
+        function loadFromLocalStorage() {
+            const savedData = localStorage.getItem('milneBayCoffeeDB');
+            if (savedData) {
+                try {
+                    db = JSON.parse(savedData);
+                } catch (e) {
+                    console.error("Failed to parse local storage data", e);
+                }
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('milneBayCoffeeDB', JSON.stringify(db));
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFromLocalStorage();
+            initLogin();
+            populateDropdowns();
+            renderAllData();
+            initCharts();
+            initMap();
+            setupScrollListener();
+        });
+
+        // TOAST NOTIFICATION SYSTEM
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let bgClass = type === 'success' ? 'bg-[#0B3B1E] border-ncaGold text-white' : 'bg-red-900 border-red-500 text-white';
+            let icon = type === 'success' ? '<i class="fa-solid fa-circle-check text-ncaGold mr-2"></i>' : '<i class="fa-solid fa-triangle-exclamation text-red-400 mr-2"></i>';
+            
+            toast.className = `pointer-events-auto flex items-center px-4 py-3 rounded-xl shadow-2xl border ${bgClass} text-xs font-semibold transform translate-x-10 opacity-0 transition-all duration-300`;
+            toast.innerHTML = `${icon}<span>${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-x-10', 'opacity-0');
+            }, 10);
+            
+            setTimeout(() => {
+                toast.classList.add('translate-x-10', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // SCROLL LISTENER FOR BACK TO TOP BUTTON
+        function setupScrollListener() {
+            window.addEventListener('scroll', () => {
+                const btn = document.getElementById('backToTopBtn');
+                if (window.scrollY > 300) {
+                    btn.classList.remove('hidden');
+                } else {
+                    btn.classList.add('hidden');
+                }
+            });
+        }
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function initLogin() {
+            document.getElementById('loginForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const u = document.getElementById('loginUser').value.trim();
+                const p = document.getElementById('loginPass').value.trim();
+                if(u === 'admin' && p === 'admin123') {
+                    document.getElementById('loginScreen').classList.add('hidden');
+                    document.getElementById('mainApp').classList.remove('hidden');
+                    setTimeout(() => { if(window.map) window.map.invalidateSize(); }, 300);
+                } else {
+                    document.getElementById('loginError').classList.remove('hidden');
+                }
+            });
+        }
+
+        function togglePassword() {
+            const pass = document.getElementById('loginPass');
+            const icon = document.getElementById('passIcon');
+            if(pass.type === 'password') {
+                pass.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                pass.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        }
+
+        // Trigger Logout Confirmation Modal
+        function logoutSystem() {
+            document.getElementById('logoutModal').classList.remove('hidden');
+        }
+
+        // Execute Actual Logout
+        function confirmLogout() {
+            closeModal('logoutModal');
+            document.getElementById('mainApp').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('loginUser').value = '';
+            document.getElementById('loginPass').value = '';
+            document.getElementById('loginError').classList.add('hidden');
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            if(tabId === 'dashboard' && window.map) {
+                setTimeout(() => window.map.invalidateSize(), 200);
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function populateDropdowns() {
+            const districts = Object.keys(milneBayData);
+            
+            ['f_district', 'g_district', 'e_district', 'filterDistrictFarmers', 'filterDistrictGroups', 'filterDistrictBlocks'].forEach(id => {
+                const el = document.getElementById(id);
+                if(!el) return;
+                const currentVal = el.value;
+                el.innerHTML = id.includes('filter') ? '<option value="">All Districts</option>' : '<option value="">Select District</option>';
+                districts.forEach(d => {
+                    el.innerHTML += `<option value="${d}">${d}</option>`;
+                });
+                el.value = currentVal;
+            });
+
+            const locContainer = document.getElementById('locationListContainer');
+            if(locContainer) {
+                locContainer.innerHTML = '';
+                districts.forEach((d, index) => {
+                    let rllgKeys = Object.keys(milneBayData[d]);
+                    let totalWards = rllgKeys.reduce((acc, r) => acc + milneBayData[d][r].length, 0);
+                    
+                    locContainer.innerHTML += `
+                        <div class="glass-panel p-4 rounded-xl shadow relative flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-[10px] bg-ncaCard px-2 py-0.5 rounded text-ncaGold font-bold border border-ncaGold/30">${rllgKeys.length} RLLGs</span>
+                                    <div class="relative">
+                                        <button onclick="toggleActionMenu(event, 'locMenu-${index}')" class="text-gray-400 hover:text-white px-2 py-1"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                                        <div id="locMenu-${index}" class="action-menu-dropdown hidden absolute right-0 mt-1 w-36 bg-[#062312] border border-ncaGold/40 rounded-lg shadow-xl z-20 text-xs py-1">
+                                            <button onclick="viewDistrictDetails('${d}')" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-white flex items-center space-x-2"><i class="fa-solid fa-eye text-ncaGold"></i><span>View RLLGs & Wards</span></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h4 class="font-bold text-ncaGold uppercase text-sm mb-1"><i class="fa-solid fa-map-pin mr-2"></i>${d}</h4>
+                                <p class="text-xs text-gray-300 mb-3">Total Wards: <strong class="text-white">${totalWards}</strong></p>
+                                <div class="space-y-1 text-xs text-gray-400">
+                                    ${rllgKeys.map(r => `<div>&bull; ${r} (${milneBayData[d][r].length} wards)</div>`).join('')}
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-2 border-t border-ncaGold/10 flex justify-end">
+                                <button onclick="viewDistrictDetails('${d}')" class="text-ncaGold hover:underline text-xs font-semibold">View All Wards</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            updateAffiliationsDropdown();
+            updateFarmersDropdownForBlocks();
+        }
+
+        function populateRLLGs(districtId, rllgId, wardId) {
+            const dist = document.getElementById(districtId).value;
+            const rllgEl = document.getElementById(rllgId);
+            rllgEl.innerHTML = '<option value="">Select RLLG</option>';
+            document.getElementById(wardId).innerHTML = '<option value="">Select Ward</option>';
+            if(dist && milneBayData[dist]) {
+                Object.keys(milneBayData[dist]).forEach(r => {
+                    rllgEl.innerHTML += `<option value="${r}">${r}</option>`;
+                });
+            }
+        }
+
+        function populateWards(districtId, rllgId, wardId) {
+            const dist = document.getElementById(districtId).value;
+            const rllg = document.getElementById(rllgId).value;
+            const wardEl = document.getElementById(wardId);
+            wardEl.innerHTML = '<option value="">Select Ward</option>';
+            if(dist && rllg && milneBayData[dist][rllg]) {
+                milneBayData[dist][rllg].forEach(w => {
+                    wardEl.innerHTML += `<option value="${w}">${w}</option>`;
+                });
+            }
+        }
+
+        function updateAffiliationsDropdown() {
+            const affEl = document.getElementById('f_affiliation');
+            if(!affEl) return;
+            affEl.innerHTML = '<option value="No Affiliation">No Affiliation</option>';
+            db.groups.forEach(g => {
+                affEl.innerHTML += `<option value="${g.name}">${g.name}</option>`;
+            });
+        }
+
+        function updateFarmersDropdownForBlocks() {
+            const bFarmer = document.getElementById('b_farmer');
+            if(!bFarmer) return;
+            bFarmer.innerHTML = '<option value="">Select Registered Farmer</option>';
+            db.farmers.forEach(f => {
+                bFarmer.innerHTML += `<option value="${f.name}">${f.name} (${f.id})</option>`;
+            });
+        }
+
+        function generateIDs() {
+            document.getElementById('f_id').value = 'F-' + Math.floor(1000 + Math.random() * 9000);
+            document.getElementById('f_date').value = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
+            document.getElementById('g_id').value = 'G-' + Math.floor(500 + Math.random() * 500);
+            document.getElementById('g_regno').value = 'MBCC-2026-' + Math.floor(10 + Math.random() * 90);
+            document.getElementById('g_date').value = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
+            document.getElementById('b_id').value = 'B-' + Math.floor(900 + Math.random() * 900);
+
+            document.getElementById('e_id').value = 'E-' + Math.floor(300 + Math.random() * 700);
+            document.getElementById('e_date').value = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        }
+
+        function openModal(modalId) {
+            generateIDs();
+            if(modalId === 'farmerModal') {
+                document.getElementById('farmerEditIndex').value = '-1';
+                document.getElementById('farmerModalTitle').innerHTML = '<i class="fa-solid fa-user-plus text-ncaGold mr-2"></i>Register New Farmer';
+                document.getElementById('farmerForm').reset();
+                generateIDs();
+            } else if(modalId === 'groupModal') {
+                document.getElementById('groupEditIndex').value = '-1';
+                document.getElementById('groupForm').reset();
+                generateIDs();
+            } else if(modalId === 'blockModal') {
+                document.getElementById('blockEditIndex').value = '-1';
+                document.getElementById('blockForm').reset();
+                generateIDs();
+                updateFarmersDropdownForBlocks();
+            } else if(modalId === 'extensionModal') {
+                document.getElementById('extEditIndex').value = '-1';
+                document.getElementById('extensionForm').reset();
+                document.querySelectorAll('input[name="e_type_chk"]').forEach(chk => chk.checked = false);
+                generateIDs();
+            }
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function saveFarmer(e) {
+            e.preventDefault();
+            const index = parseInt(document.getElementById('farmerEditIndex').value);
+            const data = {
+                id: document.getElementById('f_id').value,
+                date: document.getElementById('f_date').value,
+                name: document.getElementById('f_name').value,
+                gender: document.getElementById('f_gender').value,
+                age: parseInt(document.getElementById('f_age').value),
+                phone: document.getElementById('f_phone').value,
+                district: document.getElementById('f_district').value,
+                rllg: document.getElementById('f_rllg').value,
+                ward: document.getElementById('f_ward').value,
+                community: document.getElementById('f_community').value,
+                coffee: document.getElementById('f_coffee').value,
+                affiliation: document.getElementById('f_affiliation').value
+            };
+
+            if(index === -1) {
+                db.farmers.push(data);
+                showToast(`Farmer "${data.name}" successfully registered!`);
+            } else {
+                db.farmers[index] = data;
+                showToast(`Farmer "${data.name}" successfully updated!`);
+            }
+
+            saveToLocalStorage();
+            closeModal('farmerModal');
+            updateFarmersDropdownForBlocks();
+            renderAllData();
+            updateLiveMapMarkers();
+        }
+
+        function saveGroup(e) {
+            e.preventDefault();
+            const index = parseInt(document.getElementById('groupEditIndex').value);
+            const data = {
+                id: document.getElementById('g_id').value,
+                date: document.getElementById('g_date').value,
+                name: document.getElementById('g_name').value,
+                type: document.getElementById('g_type').value,
+                regno: document.getElementById('g_regno').value,
+                manager: document.getElementById('g_manager').value,
+                district: document.getElementById('g_district').value,
+                rllg: document.getElementById('g_rllg').value,
+                ward: document.getElementById('g_ward').value,
+                community: document.getElementById('g_community').value,
+                members: parseInt(document.getElementById('g_members').value) || 0
+            };
+
+            if(index === -1) {
+                db.groups.push(data);
+                showToast(`Group "${data.name}" successfully registered!`);
+            } else {
+                db.groups[index] = data;
+                showToast(`Group "${data.name}" successfully updated!`);
+            }
+
+            saveToLocalStorage();
+            closeModal('groupModal');
+            updateAffiliationsDropdown();
+            renderAllData();
+        }
+
+        function saveBlock(e) {
+            e.preventDefault();
+            const index = parseInt(document.getElementById('blockEditIndex').value);
+            const data = {
+                id: document.getElementById('b_id').value,
+                category: document.getElementById('b_category').value,
+                farmer: document.getElementById('b_farmer').value,
+                name: document.getElementById('b_name').value,
+                coffee: document.getElementById('b_coffee').value,
+                area: parseFloat(document.getElementById('b_area').value),
+                trees: parseInt(document.getElementById('b_trees').value),
+                year: document.getElementById('b_year').value,
+                condition: document.getElementById('b_condition').value
+            };
+
+            if(index === -1) {
+                db.blocks.push(data);
+                showToast(`Coffee block "${data.name}" successfully registered!`);
+            } else {
+                db.blocks[index] = data;
+                showToast(`Coffee block "${data.name}" successfully updated!`);
+            }
+
+            saveToLocalStorage();
+            closeModal('blockModal');
+            renderAllData();
+        }
+
+        function saveExtension(e) {
+            e.preventDefault();
+            const index = parseInt(document.getElementById('extEditIndex').value);
+            
+            const selectedTypes = [];
+            document.querySelectorAll('input[name="e_type_chk"]:checked').forEach(chk => {
+                selectedTypes.push(chk.value);
+            });
+            const typeString = selectedTypes.length > 0 ? selectedTypes.join(', ') : 'General Extension';
+
+            const data = {
+                id: document.getElementById('e_id').value,
+                date: document.getElementById('e_date').value,
+                type: typeString,
+                officer: document.getElementById('e_officer').value,
+                district: document.getElementById('e_district').value,
+                rllg: document.getElementById('e_rllg').value,
+                ward: document.getElementById('e_ward').value,
+                community: document.getElementById('e_community').value,
+                males: parseInt(document.getElementById('e_males').value),
+                females: parseInt(document.getElementById('e_females').value),
+                seedlings: parseInt(document.getElementById('e_seedlings').value),
+                area: parseFloat(document.getElementById('e_area').value),
+                topics: document.getElementById('e_topics').value
+            };
+
+            if(index === -1) {
+                db.extension.push(data);
+                showToast(`Extension activity successfully recorded!`);
+            } else {
+                db.extension[index] = data;
+                showToast(`Extension activity successfully updated!`);
+            }
+
+            saveToLocalStorage();
+            closeModal('extensionModal');
+            renderAllData();
+        }
+
+        function updateGroupMemberCounts() {
+            db.groups.forEach(g => {
+                g.members = db.farmers.filter(f => f.affiliation === g.name).length;
+            });
+        }
+
+        function editRecord(type, index) {
+            if(type === 'farmers') {
+                const f = db.farmers[index];
+                openModal('farmerModal');
+                document.getElementById('farmerEditIndex').value = index;
+                document.getElementById('f_id').value = f.id;
+                document.getElementById('f_date').value = f.date;
+                document.getElementById('f_name').value = f.name;
+                document.getElementById('f_gender').value = f.gender;
+                document.getElementById('f_age').value = f.age;
+                document.getElementById('f_phone').value = f.phone;
+                document.getElementById('f_district').value = f.district;
+                populateRLLGs('f_district', 'f_rllg', 'f_ward');
+                document.getElementById('f_rllg').value = f.rllg;
+                populateWards('f_district', 'f_rllg', 'f_ward');
+                document.getElementById('f_ward').value = f.ward;
+                document.getElementById('f_community').value = f.community;
+                document.getElementById('f_coffee').value = f.coffee;
+                document.getElementById('f_affiliation').value = f.affiliation;
+            } else if(type === 'groups') {
+                const g = db.groups[index];
+                openModal('groupModal');
+                document.getElementById('groupEditIndex').value = index;
+                document.getElementById('g_id').value = g.id;
+                document.getElementById('g_date').value = g.date;
+                document.getElementById('g_name').value = g.name;
+                document.getElementById('g_type').value = g.type;
+                document.getElementById('g_regno').value = g.regno;
+                document.getElementById('g_manager').value = g.manager;
+                document.getElementById('g_district').value = g.district;
+                populateRLLGs('g_district', 'g_rllg', 'g_ward');
+                document.getElementById('g_rllg').value = g.rllg;
+                populateWards('g_district', 'g_rllg', 'g_ward');
+                document.getElementById('g_ward').value = g.ward;
+                document.getElementById('g_community').value = g.community;
+            } else if(type === 'blocks') {
+                const b = db.blocks[index];
+                openModal('blockModal');
+                document.getElementById('blockEditIndex').value = index;
+                document.getElementById('b_id').value = b.id;
+                document.getElementById('b_category').value = b.category;
+                document.getElementById('b_farmer').value = b.farmer;
+                document.getElementById('b_name').value = b.name;
+                document.getElementById('b_coffee').value = b.coffee;
+                document.getElementById('b_area').value = b.area;
+                document.getElementById('b_trees').value = b.trees;
+                document.getElementById('b_year').value = b.year;
+                document.getElementById('b_condition').value = b.condition;
+            } else if(type === 'extension') {
+                const ex = db.extension[index];
+                openModal('extensionModal');
+                document.getElementById('extEditIndex').value = index;
+                document.getElementById('e_id').value = ex.id;
+                document.getElementById('e_date').value = ex.date;
+                document.getElementById('e_officer').value = ex.officer;
+                document.getElementById('e_district').value = ex.district;
+                populateRLLGs('e_district', 'e_rllg', 'e_ward');
+                document.getElementById('e_rllg').value = ex.rllg;
+                populateWards('e_district', 'e_rllg', 'e_ward');
+                document.getElementById('e_ward').value = ex.ward;
+                document.getElementById('e_community').value = ex.community;
+                document.getElementById('e_males').value = ex.males;
+                document.getElementById('e_females').value = ex.females;
+                document.getElementById('e_seedlings').value = ex.seedlings;
+                document.getElementById('e_area').value = ex.area;
+                document.getElementById('e_topics').value = ex.topics;
+
+                document.querySelectorAll('input[name="e_type_chk"]').forEach(chk => {
+                    chk.checked = ex.type.includes(chk.value);
+                });
+            }
+        }
+
+        function viewRecord(type, index) {
+            const item = db[type][index];
+            let html = '';
+            
+            if (type === 'groups') {
+                const affiliatedFarmers = db.farmers.filter(f => f.affiliation === item.name);
+                const arabicaCount = affiliatedFarmers.filter(f => f.coffee === 'Arabica').length;
+                const robustaCount = affiliatedFarmers.filter(f => f.coffee === 'Robusta').length;
+                const bothCount = affiliatedFarmers.filter(f => f.coffee === 'Both').length;
+
+                for(let key in item) {
+                    html += `<div class="flex justify-between border-b border-ncaGold/10 py-1.5"><span class="font-semibold text-ncaGold uppercase">${key}:</span> <span class="text-white">${item[key]}</span></div>`;
+                }
+                html += `<div class="flex justify-between border-b border-ncaGold/10 py-1.5"><span class="font-semibold text-ncaGold uppercase">Arabica Total:</span> <span class="text-white">${arabicaCount}</span></div>`;
+                html += `<div class="flex justify-between border-b border-ncaGold/10 py-1.5"><span class="font-semibold text-ncaGold uppercase">Robusta Total:</span> <span class="text-white">${robustaCount}</span></div>`;
+                html += `<div class="flex justify-between border-b border-ncaGold/10 py-1.5"><span class="font-semibold text-ncaGold uppercase">Both Total:</span> <span class="text-white">${bothCount}</span></div>`;
+            } else {
+                for(let key in item) {
+                    html += `<div class="flex justify-between border-b border-ncaGold/10 py-1.5"><span class="font-semibold text-ncaGold uppercase">${key}:</span> <span class="text-white">${item[key]}</span></div>`;
+                }
+            }
+
+            document.getElementById('viewModalContent').innerHTML = html;
+            document.getElementById('viewModal').classList.remove('hidden');
+        }
+
+        function viewDistrictDetails(districtName) {
+            document.getElementById('locModalTitle').innerHTML = `<i class="fa-solid fa-map-location-dot text-ncaGold mr-2"></i>${districtName} - RLLGs & Wards`;
+            let rllgs = milneBayData[districtName];
+            let html = '';
+            for(let rllgName in rllgs) {
+                let wards = rllgs[rllgName];
+                html += `
+                    <div class="border border-ncaGold/30 p-3 rounded-lg bg-[#062312]">
+                        <h4 class="font-bold text-ncaGold text-sm mb-1">${rllgName} <span class="text-xs text-gray-400 font-normal">(${wards.length} Wards)</span></h4>
+                        <p class="text-xs text-gray-300">${wards.join(', ')}</p>
+                    </div>
+                `;
+            }
+            document.getElementById('locModalContent').innerHTML = html;
+            document.getElementById('locationDetailsModal').classList.remove('hidden');
+        }
+
+        function promptDelete(type, index) {
+            document.getElementById('deleteType').value = type;
+            document.getElementById('deleteIndex').value = index;
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+
+        function confirmDelete() {
+            const type = document.getElementById('deleteType').value;
+            const index = parseInt(document.getElementById('deleteIndex').value);
+            db[type].splice(index, 1);
+            saveToLocalStorage();
+            closeModal('deleteModal');
+            updateGroupMemberCounts();
+            renderAllData();
+            if(type === 'farmers') updateLiveMapMarkers();
+            showToast('Record successfully deleted.', 'error');
+        }
+
+        function toggleActionMenu(event, id) {
+            event.stopPropagation();
+            document.querySelectorAll('.action-menu-dropdown').forEach(el => {
+                if(el.id !== id) el.classList.add('hidden');
+            });
+            const menu = document.getElementById(id);
+            if(menu) menu.classList.toggle('hidden');
+        }
+
+        window.addEventListener('click', () => {
+            document.querySelectorAll('.action-menu-dropdown').forEach(el => el.classList.add('hidden'));
+        });
+
+        function renderAllData() {
+            updateGroupMemberCounts();
+            
+            document.getElementById('kpiFarmers').innerText = db.farmers.length;
+            document.getElementById('kpiGroups').innerText = db.groups.length;
+            document.getElementById('kpiBlocks').innerText = db.blocks.length;
+
+            const uniqueCommunities = new Set(db.farmers.map(f => f.community.trim().toLowerCase())).size;
+            document.getElementById('kpiCommunities').innerText = uniqueCommunities;
+
+            document.getElementById('dbCountFarmers').innerText = db.farmers.length;
+            document.getElementById('dbCountGroups').innerText = db.groups.length;
+            document.getElementById('dbCountBlocks').innerText = db.blocks.length;
+            document.getElementById('dbCountExtension').innerText = db.extension.length;
+
+            renderFarmersGrid();
+            renderGroupsGrid();
+            renderBlocksGrid();
+            renderExtensionGrid();
+            updateCharts();
+        }
+
+        function renderFarmersGrid(filter = '', districtFilter = '') {
+            const container = document.getElementById('farmersGrid');
+            container.innerHTML = '';
+            db.farmers.forEach((f, index) => {
+                if(filter && !f.name.toLowerCase().includes(filter) && !f.id.toLowerCase().includes(filter) && !f.phone.includes(filter)) return;
+                if(districtFilter && f.district !== districtFilter) return;
+
+                container.innerHTML += `
+                    <div class="glass-panel p-4 rounded-xl shadow relative flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-[10px] bg-ncaCard px-2 py-0.5 rounded text-ncaGold font-bold border border-ncaGold/30">${f.id}</span>
+                                <div class="relative">
+                                    <button onclick="toggleActionMenu(event, 'farmerMenu-${index}')" class="text-gray-400 hover:text-white px-2 py-1"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                                    <div id="farmerMenu-${index}" class="action-menu-dropdown hidden absolute right-0 mt-1 w-32 bg-[#062312] border border-ncaGold/40 rounded-lg shadow-xl z-20 text-xs py-1">
+                                        <button onclick="viewRecord('farmers', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-white flex items-center space-x-2"><i class="fa-solid fa-eye text-ncaGold"></i><span>View</span></button>
+                                        <button onclick="editRecord('farmers', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-white flex items-center space-x-2"><i class="fa-solid fa-pen text-ncaGold"></i><span>Edit</span></button>
+                                        <button onclick="promptDelete('farmers', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-red-400 flex items-center space-x-2"><i class="fa-solid fa-trash"></i><span>Delete</span></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <h4 class="font-bold text-white text-sm mb-1">${f.name}</h4>
+                            <p class="text-xs text-ncaGold mb-2"><i class="fa-solid fa-location-dot mr-1"></i>${f.district}, ${f.ward}</p>
+                            <div class="space-y-1 text-[11px] text-gray-300 border-t border-ncaGold/10 pt-2">
+                                <p><strong class="text-ncaGold">Gender/Age:</strong> ${f.gender}, ${f.age} yrs</p>
+                                <p><strong class="text-ncaGold">Phone:</strong> ${f.phone}</p>
+                                <p><strong class="text-ncaGold">Coffee Type:</strong> ${f.coffee === 'Both' ? 'Both (Arabica/Robusta)' : f.coffee}</p>
+                                <p><strong class="text-ncaGold">Affiliation:</strong> ${f.affiliation}</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-2 border-t border-ncaGold/10 flex justify-between items-center text-[10px] text-gray-400">
+                            <span><i class="fa-solid fa-clock mr-1"></i>${f.date}</span>
+                            <span class="text-ncaGold font-semibold">Registered</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderGroupsGrid(filter = '', districtFilter = '') {
+            const container = document.getElementById('groupsGrid');
+            container.innerHTML = '';
+            db.groups.forEach((g, index) => {
+                if(filter && !g.name.toLowerCase().includes(filter) && !g.manager.toLowerCase().includes(filter)) return;
+                if(districtFilter && g.district !== districtFilter) return;
+
+                const affiliatedFarmers = db.farmers.filter(f => f.affiliation === g.name);
+                const arabicaCount = affiliatedFarmers.filter(f => f.coffee === 'Arabica').length;
+                const robustaCount = affiliatedFarmers.filter(f => f.coffee === 'Robusta').length;
+                const bothCount = affiliatedFarmers.filter(f => f.coffee === 'Both').length;
+
+                container.innerHTML += `
+                    <div class="glass-panel p-4 rounded-xl shadow relative flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-[10px] bg-ncaCard px-2 py-0.5 rounded text-ncaGold font-bold border border-ncaGold/30">${g.id}</span>
+                                <div class="relative">
+                                    <button onclick="toggleActionMenu(event, 'groupMenu-${index}')" class="text-gray-400 hover:text-white px-2 py-1"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                                    <div id="groupMenu-${index}" class="action-menu-dropdown hidden absolute right-0 mt-1 w-32 bg-[#062312] border border-ncaGold/40 rounded-lg shadow-xl z-20 text-xs py-1">
+                                        <button onclick="viewRecord('groups', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-white flex items-center space-x-2"><i class="fa-solid fa-eye text-ncaGold"></i><span>View</span></button>
+                                        <button onclick="editRecord('groups', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-white flex items-center space-x-2"><i class="fa-solid fa-pen text-ncaGold"></i><span>Edit</span></button>
+                                        <button onclick="promptDelete('groups', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-red-400 flex items-center space-x-2"><i class="fa-solid fa-trash"></i><span>Delete</span></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <h4 class="font-bold text-white text-sm mb-1">${g.name}</h4>
+                            <p class="text-xs text-ncaGold mb-2"><i class="fa-solid fa-building mr-1"></i>${g.type} (${g.regno})</p>
+                            <div class="space-y-1 text-[11px] text-gray-300 border-t border-ncaGold/10 pt-2">
+                                <p><strong class="text-ncaGold">Manager:</strong> ${g.manager}</p>
+                                <p><strong class="text-ncaGold">District:</strong> ${g.district}</p>
+                                <p><strong class="text-ncaGold">Member Count:</strong> ${g.members} farmers</p>
+                                <p><strong class="text-ncaGold">Arabica Total:</strong> ${arabicaCount}</p>
+                                <p><strong class="text-ncaGold">Robusta Total:</strong> ${robustaCount}</p>
+                                <p><strong class="text-ncaGold">Both Total:</strong> ${bothCount}</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-2 border-t border-ncaGold/10 flex justify-between items-center text-[10px] text-gray-400">
+                            <span><i class="fa-solid fa-clock mr-1"></i>${g.date}</span>
+                            <span class="text-ncaGold font-semibold">Active Cooperative</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderBlocksGrid(filter = '', districtFilter = '') {
+            const container = document.getElementById('blocksGrid');
+            container.innerHTML = '';
+            db.blocks.forEach((b, index) => {
+                if(filter && !b.name.toLowerCase().includes(filter) && !b.farmer.toLowerCase().includes(filter)) return;
+
+                container.innerHTML += `
+                    <div class="glass-panel p-4 rounded-xl shadow relative flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-[10px] bg-ncaCard px-2 py-0.5 rounded text-ncaGold font-bold border border-ncaGold/30">${b.id}</span>
+                                <div class="relative">
+                                    <button onclick="toggleActionMenu(event, 'blockMenu-${index}')" class="text-gray-400 hover:text-white px-2 py-1"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                                    <div id="blockMenu-${index}" class="action-menu-dropdown hidden absolute right-0 mt-1 w-32 bg-[#062312] border border-ncaGold/40 rounded-lg shadow-xl z-20 text-xs py-1">
+                                        <button onclick="viewRecord('blocks', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-white flex items-center space-x-2"><i class="fa-solid fa-eye text-ncaGold"></i><span>View</span></button>
+                                        <button onclick="editRecord('blocks', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-white flex items-center space-x-2"><i class="fa-solid fa-pen text-ncaGold"></i><span>Edit</span></button>
+                                        <button onclick="promptDelete('blocks', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-red-400 flex items-center space-x-2"><i class="fa-solid fa-trash"></i><span>Delete</span></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <h4 class="font-bold text-white text-sm mb-1">${b.name}</h4>
+                            <p class="text-xs text-ncaGold mb-2"><i class="fa-solid fa-seedling mr-1"></i>${b.category} - Farmer: ${b.farmer}</p>
+                            <div class="space-y-1 text-[11px] text-gray-300 border-t border-ncaGold/10 pt-2">
+                                <p><strong class="text-ncaGold">Coffee Type:</strong> ${b.coffee}</p>
+                                <p><strong class="text-ncaGold">Area:</strong> ${b.area} ha</p>
+                                <p><strong class="text-ncaGold">Total Trees:</strong> ${b.trees}</p>
+                                <p><strong class="text-ncaGold">Condition:</strong> <span class="text-green-400 font-semibold">${b.condition}</span></p>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-2 border-t border-ncaGold/10 flex justify-between items-center text-[10px] text-gray-400">
+                            <span>Est. ${b.year}</span>
+                            <span class="text-ncaGold font-semibold">Registered Block</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderExtensionGrid() {
+            const container = document.getElementById('extensionGrid');
+            container.innerHTML = '';
+            db.extension.forEach((e, index) => {
+                container.innerHTML += `
+                    <div class="glass-panel p-4 rounded-xl shadow relative flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-[10px] bg-ncaCard px-2 py-0.5 rounded text-ncaGold font-bold border border-ncaGold/30">${e.id}</span>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-[10px] text-gray-300">${e.date}</span>
+                                    <div class="relative">
+                                        <button onclick="toggleActionMenu(event, 'extMenu-${index}')" class="text-gray-400 hover:text-white px-1 py-1"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                                        <div id="extMenu-${index}" class="action-menu-dropdown hidden absolute right-0 mt-1 w-32 bg-[#062312] border border-ncaGold/40 rounded-lg shadow-xl z-20 text-xs py-1">
+                                            <button onclick="viewRecord('extension', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-white flex items-center space-x-2"><i class="fa-solid fa-eye text-ncaGold"></i><span>View</span></button>
+                                            <button onclick="editRecord('extension', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-white flex items-center space-x-2"><i class="fa-solid fa-pen text-ncaGold"></i><span>Edit</span></button>
+                                            <button onclick="promptDelete('extension', ${index})" class="w-full text-left px-3 py-1.5 hover:bg-ncaCard text-red-400 flex items-center space-x-2"><i class="fa-solid fa-trash"></i><span>Delete</span></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <h4 class="font-bold text-white text-sm mb-1">${e.type}</h4>
+                            <p class="text-xs text-ncaGold mb-2"><i class="fa-solid fa-user-tie mr-1"></i>Officer: ${e.officer}</p>
+                            <div class="space-y-1 text-[11px] text-gray-300 border-t border-ncaGold/10 pt-2">
+                                <p><strong class="text-ncaGold">Location:</strong> ${e.district}, ${e.ward}</p>
+                                <p><strong class="text-ncaGold">Participants:</strong> M: ${e.males}, F: ${e.females}</p>
+                                <p><strong class="text-ncaGold">Seedlings Distributed:</strong> ${e.seedlings}</p>
+                                <p><strong class="text-ncaGold">Topics:</strong> ${e.topics}</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-2 border-t border-ncaGold/10 flex justify-between items-center text-[10px] text-gray-400">
+                            <span>Activity Log</span>
+                            <span class="text-ncaGold font-semibold">Recorded</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function filterTable(type) {
+            if(type === 'farmers') {
+                const query = document.getElementById('searchFarmers').value.toLowerCase();
+                const dist = document.getElementById('filterDistrictFarmers').value;
+                renderFarmersGrid(query, dist);
+            } else if(type === 'groups') {
+                const query = document.getElementById('searchGroups').value.toLowerCase();
+                const dist = document.getElementById('filterDistrictGroups').value;
+                renderGroupsGrid(query, dist);
+            } else if(type === 'blocks') {
+                const query = document.getElementById('searchBlocks').value.toLowerCase();
+                renderBlocksGrid(query);
+            }
+        }
+
+        function initMap() {
+            const map = L.map('mapContainer').setView([-10.3167, 150.2833], 8);
+            window.map = map;
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            updateLiveMapMarkers();
+        }
+
+        function updateLiveMapMarkers() {
+            if(!window.map) return;
+
+            mapMarkers.forEach(m => window.map.removeLayer(m));
+            mapMarkers = [];
+
+            if (db.farmers.length === 0) return;
+
+            db.farmers.forEach((f, idx) => {
+                let baseCoords = districtCoordinates[f.district] || { lat: -10.3167, lng: 150.2833 };
+                let latOffset = (idx * 0.02) % 0.3 - 0.15;
+                let lngOffset = (idx * 0.03) % 0.3 - 0.15;
+                let lat = baseCoords.lat + latOffset;
+                let lng = baseCoords.lng + lngOffset;
+
+                let coffeeDisplay = f.coffee === 'Both' ? 'Both (Arabica/Robusta)' : f.coffee;
+
+                let marker = L.marker([lat, lng]).addTo(window.map)
+                    .bindPopup(`
+                        <div style="color:#062312; font-family:'Outfit'; font-size: 11px; line-height: 1.4;">
+                            <strong style="font-size: 12px; color: #0B3B1E;"><i class="fa-solid fa-user text-green-700 mr-1"></i>${f.name}</strong><br>
+                            <strong>Affiliation Group:</strong> ${f.affiliation}<br>
+                            <strong>Coffee Type:</strong> ${coffeeDisplay}<br>
+                            <strong>Location:</strong> ${f.community}, ${f.ward}, ${f.district}
+                        </div>
+                    `);
+                mapMarkers.push(marker);
+            });
+        }
+
+        function initCharts() {
+            const ctxBar = document.getElementById('districtBarChart').getContext('2d');
+            charts.districtBar = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['Rabaraba/Baniara', 'Samarai-Murua', 'Kirivina/Goodenough', 'Esa\'ala', 'Alotau'],
+                    datasets: [{
+                        label: 'Registered Farmers',
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: '#F4C430',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { ticks: { color: '#ccc', font: { size: 10 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#ccc', font: { size: 10 } }, grid: { display: false } }
+                    }
+                }
+            });
+
+            const ctxPie = document.getElementById('quarterlyPieChart').getContext('2d');
+            charts.quarterlyPie = new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Arabica', 'Robusta', 'Both / Mixed'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#F4C430', '#0B3B1E', '#22c55e'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#ccc', font: { size: 10 } } } }
+                }
+            });
+
+            const ctxLine = document.getElementById('quarterlyLineChart').getContext('2d');
+            charts.quarterlyLine = new Chart(ctxLine, {
+                type: 'line',
+                data: {
+                    labels: ['Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026 (Est)'],
+                    datasets: [{
+                        label: 'Seedlings Distributed',
+                        data: [0, 0, 0, 0],
+                        borderColor: '#F4C430',
+                        backgroundColor: 'rgba(244,196,48,0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#ccc', font: { size: 10 } } } },
+                    scales: {
+                        y: { ticks: { color: '#ccc', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#ccc', font: { size: 10 } }, grid: { display: false } }
+                    }
+                }
+            });
+
+            const ctxAnnual = document.getElementById('annualBarChart').getContext('2d');
+            charts.annualBar = new Chart(ctxAnnual, {
+                type: 'bar',
+                data: {
+                    labels: ['2024', '2025', '2026 (YTD)'],
+                    datasets: [
+                        { label: 'Registered Farmers', data: [0, 0, 0], backgroundColor: '#F4C430', borderRadius: 4 },
+                        { label: 'Coffee Blocks', data: [0, 0, 0], backgroundColor: '#22c55e', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top', labels: { color: '#ccc', font: { size: 10 } } } },
+                    scales: {
+                        y: { ticks: { color: '#ccc', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#ccc', font: { size: 10 } }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            if(charts.districtBar) {
+                let districtCounts = {
+                    'Rabaraba/Baniara District': 0,
+                    'Samarai-Murua District': 0,
+                    'Kirivina/Goodenough District': 0,
+                    'Esa\'ala District': 0,
+                    'Alotau District': 0
+                };
+                db.farmers.forEach(f => {
+                    if(districtCounts[f.district] !== undefined) districtCounts[f.district]++;
+                });
+                charts.districtBar.data.datasets[0].data = [
+                    districtCounts['Rabaraba/Baniara District'],
+                    districtCounts['Samarai-Murua District'],
+                    districtCounts['Kirivina/Goodenough District'],
+                    districtCounts['Esa\'ala District'],
+                    districtCounts['Alotau District']
+                ];
+                charts.districtBar.update();
+            }
+
+            if(charts.quarterlyPie) {
+                let arabicaTotal = db.farmers.filter(f => f.coffee === 'Arabica').length;
+                let robustaTotal = db.farmers.filter(f => f.coffee === 'Robusta').length;
+                let bothTotal = db.farmers.filter(f => f.coffee === 'Both').length;
+                charts.quarterlyPie.data.datasets[0].data = [arabicaTotal, robustaTotal, bothTotal];
+                charts.quarterlyPie.update();
+            }
+
+            if(charts.annualBar) {
+                charts.annualBar.data.datasets[0].data[2] = db.farmers.length;
+                charts.annualBar.data.datasets[1].data[2] = db.blocks.length;
+                charts.annualBar.update();
+            }
+        }
+
+        function backupData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", "milne_bay_coffee_backup_2026.json");
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+            showToast('System data backup downloaded successfully!');
+        }
+
+        function restoreData() {
+            const fileInput = document.getElementById('restoreFile');
+            if(fileInput.files.length === 0) {
+                showToast("Please select a JSON backup file first.", "error");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    db = JSON.parse(e.target.result);
+                    saveToLocalStorage();
+                    renderAllData();
+                    updateLiveMapMarkers();
+                    showToast("System data successfully restored from backup!");
+                } catch(err) {
+                    showToast("Invalid backup file format.", "error");
+                }
+            };
+            reader.readAsText(fileInput.files[0]);
+        }
+    </script>
+</body>
+</html>
